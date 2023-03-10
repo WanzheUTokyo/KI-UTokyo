@@ -1,0 +1,414 @@
+---
+title: "Assignment 1"
+author: Wanzhe Xu Laboratory of Functional Analysis in silico, Human Genome Center,
+  The Institute of Medical Science, The University of Tokyo
+date: "2023-03-06"
+output:
+  word_document: default
+  pdf_document:
+    latex_engine: pdflatex
+---
+
+# Task 1 - Literature
+
+## 1. Read the research article of the hands-on working group you are assigned to (see file "Student Groups.pdf" in shared folder General course material).
+
+## 2. Answer the following questions
+
+### a. What is the medically relevant insight from the article?
+
+Answer: This paper provides an unbiased approach to integrate disparate single-cell transcriptome datasets for more accurate and reliable results.
+In medical research, single-cell transcriptome analysis has become an important tool for studying complex diseases and developing personalized therapeutic strategies.
+However, due to the high heterogeneity and technical bias of single-cell transcriptome data, there are large differences between different datasets, which makes the integration and interpretation of data difficult.
+With the unbiased integration approach proposed in this paper, different cellular subpopulations and differentially expressed genes can be more accurately identified while reducing batch effects and technical biases, thus deepening the understanding of disease pathogenesis and contributing to the discovery of new therapeutic targets and drugs.
+
+### b. Which genomics technology/ technologies were used?
+
+Answer: The technique used in this study is scRNA-seq, which allows researchers to sequence the transcriptome of individual cells to gain insights into gene expression patterns and cellular heterogeneity at the single-cell level.
+
+## 3. Further related research questions
+
+### a. List and explain at least three questions/ hypotheses you can think of that extend the analysis presented in the paper.
+
+Answer: Question 1: How to deal with the effects of technical biases or batch effects?
+During the acquisition and processing of individual cell transcriptome data, it may be affected by various technical factors, such as sequencing depth, PCR amplification bias, etc.
+These technical factors may bias the integration results, so it is possible to explore how to correct the effects of these technical biases during the integration process to obtain more accurate results.
+
+Question 2: How are differences between cell types handled when integrating individual cell transcriptomes?
+The approach in this paper focuses on duplicates of individual cells, but for samples with different cell types, there may be differences in gene expression levels between each cell type.
+
+Hypotheses 3: Different integration algorithms may produce different results.
+Is it possible to reduce bias, such as the effect of noise, by algorithmic integration.
+
+### b. [Optional] Devise a computational analysis strategy for (some of) the listed questions under 3a.
+
+Answer: There may be unknown batch effects in single cell transcriptome data.
+To avoid the influence of batch effects on integration results, some batch effect correction methods can be used, such as ComBat or Limma.
+
+# Task 4 - R basic operations
+
+## 1. What is the square root of 10?
+
+```{r setup1, include=FALSE, collapse=TRUE}
+cat(sqrt(10))
+```
+
+## 2. What is the logarithm of 32 to the base 2?
+
+```{r setup2, include=FALSE, collapse=TRUE}
+cat(log2(32))
+```
+
+## 3. What is the sum of the numbers from 1 to 1000?
+
+```{r setup3, include=FALSE, collapse=TRUE}
+cat(sum(1:1000))
+```
+
+## 4. What is the sum of all even numbers from 2 to 1000?
+
+```{r setup4, include=FALSE, collapse=TRUE}
+sum_even <- 0 
+
+for (i in seq(2, 1000, by=2)) {  # for loop through even numbers
+  sum_even <- sum_even + i  # add each even number to the sum
+}
+
+cat(sum_even)
+```
+
+## 5. How many pairwise comparisons are there for 100 genes?
+
+```{r setup5, include=FALSE, collapse=TRUE}
+# The seq function is used to create an equal series from 2 to 1000 with a step size of 2, so that all even numbers are obtained.
+sum_even <- sum(seq(from = 2, to = 1000, by = 2))
+sum_even
+```
+
+## 6. And how many ways to arrange 100 genes in triples?
+
+```{r setup6, include=FALSE, collapse=TRUE}
+# The NCR formula is used when some sort of ordering is done without considering the order of things. the R code is implemented as follows.
+n <- 100
+r <- 3
+
+num_triplets <- factorial(n) / (factorial(r) * factorial(n - r))
+
+print(num_triplets)
+```
+
+# Task 5 - Using R example datasets
+
+## 1. Use the R internal CO2 dataset ("data(CO2)").
+
+```{r setup7, include=TRUE, collapse=TRUE}
+data(CO2)
+help(CO2)
+```
+
+## 2. Describe briefly the content of the CO2 dataset using the help function.
+
+Answer: The CO2 dataset is a time series object containing atmospheric CO2 concentration data collected at the Mauna Loa Observatory in Hawaii from 1959 to 1997.
+The data set has two variables, which are
+
+CO2: atmospheric carbon dioxide concentration.
+Plant: the type of plant used for the experiment.
+
+There are 468 observations in the dataset.
+
+## 3. What is the average and median CO2 uptake of the plants from Quebec and Mississippi?
+
+```{r setup8, include=TRUE, collapse=TRUE}
+# import lib dplyr first
+# install.packages("dplyr")
+library(dplyr)
+CO2 %>%
+  # select only Quebec and Mississippi
+  filter(Type %in% c("Quebec", "Mississippi")) %>% 
+  # group by Type
+  group_by(Type) %>%
+  # compute mean and median
+  summarize(mean_uptake = mean(uptake), median_uptake = median(uptake))  
+```
+
+The results are shown in the table and the mean for Quebec is 33.54286 and the median is 37.15.
+The mean for Mississippi is 20.88333 and the median is 19.30.
+
+## 4. [Optional] In the "airway" example data from Bioconductor, how many genes are expressed in each sample? How many genes are not expressed in any sample?
+
+```{r setup9, include=TRUE, collapse=TRUE}
+#install packge pasilla for R version 4 or more:
+if (!requireNamespace("BiocManager", quietly = TRUE))
+install.packages("BiocManager")
+BiocManager::install("pasilla", version = "3.16")
+# Install packdge airway:
+if (!require("airway"))
+BiocManager::install("airway")
+
+# Load the "pasilla" package:
+# library(pasilla)
+
+# Load the "airway" dataset
+data(airway)
+
+# Extracts the data from the SingleCellExperiment object and converts it into a matrix
+airway_mat <- as.matrix(assay(airway))
+
+# Remove missing values
+airway_mat <- na.omit(airway_mat)
+
+# Calculate the number of expressed and non-expressed genes
+expressed_genes <- sum(rowSums(airway_mat) > 0)
+not_expressed_genes <- sum(rowSums(airway_mat) == 0)
+
+# print result
+cat("Number of expressed genes:", expressed_genes, "\n")
+cat("Number of not expressed genes:", not_expressed_genes, "\n")
+```
+
+# Task 6 - R Functions
+
+## 1. Write a function that calculates the ratio of the mean and the median of a given vector.
+
+```{r setup10, include=TRUE, collapse=TRUE}
+mean_median_ratio <- function(vector) {
+  # Calculate mean and median
+  mean <- mean(vector)
+  median <- median(vector)
+  
+  # Calculate ratio
+  ratio <- mean / median
+  
+  # Return ratio
+  return(ratio)
+}
+```
+
+## 2. Write a function that ignores the lowest and the highest value from a given vector and calculate the mean.
+
+```{r setup11, include=TRUE, collapse=TRUE}
+trimmed_mean <- function(vector) {
+  # Remove lowest and highest values
+  trimmed_vector <- vector[-c(which.min(vector), which.max(vector))]
+  
+  # Calculate mean of trimmed vector
+  mean(trimmed_vector)
+}
+```
+
+## 3. Read about piping from here:<https://r4ds.had.co.nz/pipes.html#pipes> (you don't have to learn everything, a basic understanding of the usage is enough). Write a short (max. 300 characters, no spaces) explanation of why, how, and when not to use pipes.
+
+Pipes in R are used to chain together multiple operations, making code more readable and efficient.
+Pipes allow data to flow from one operation to the next, reducing the need for intermediate variables.
+However, pipes can be difficult to read when they become too complex or are nested too deeply.
+Additionally, some operations may not work well with pipes, such as functions that require multiple arguments or functions that require data to be grouped or sorted in a particular way.
+Therefore, pipes should be used judiciously, and not at the expense of code readability or functionality.
+
+## 4. Familiarize yourself with the apply-family of functions (apply, lapply, sapply etc.) <http://uc-r.github.io/apply_family> Write a short explanation (max. 300 characters, no spaces) of why they could be useful in your work.
+
+The apply-family of functions in R (apply, lapply, sapply, etc.) can be useful in my work because they allow for efficient and streamlined manipulation of data in arrays and lists.
+These functions provide a simpler and more concise way to apply a function to subsets of a dataset or to apply a function across multiple datasets, reducing the amount of repetitive code.
+The apply-family functions also allow for the output to be returned in various formats, such as a list, vector, or matrix, depending on the needs of the analysis.
+
+# Task 7 - Basic visualization with R
+
+## 1. Compare the distributions of the body heights of the two species from the 'magic_guys.csv' dataset graphically
+
+### a. using the basic 'hist' function as well as 'ggplot' and 'geom_histogram' functions from the ggplot2 package. Optimize the plots for example by trying several different 'breaks'. Note that ggplot2-based functions give you many more options for changing the visualization parameters, try some of them.
+
+```{r setup12, include=TRUE, collapse=TRUE}
+# Load the data
+magic_guys <- read.csv("magic_guys.csv")
+library(ggplot2)
+# Calculate body height
+body_height <- magic_guys$weight / magic_guys$length^2
+
+# Subset the data by species
+species1 <- subset(body_height, magic_guys$species == "jedi")
+species2 <- subset(body_height, magic_guys$species == "sith")
+#print(species1)
+#print(species2)
+type(species1)
+# Use the basic hist() function to plot histograms of the body height data for both species
+hist(species1, breaks = 20, col = "blue", main = "Species 1")
+hist(species2, breaks = 20, col = "red", add = TRUE)
+
+# Use ggplot2 and geom_histogram() to plot histograms of the body height data for both species
+# Load the necessary library
+library(ggplot2)
+
+# Create a new data frame with the body heights of both species
+new_df <- data.frame(Body_Height = c(species1, species2),
+                     Species = factor(rep(c("Species 1", "Species 2"), c(length(species1), length(species2)))))
+
+# Create the histogram plot
+ggplot(new_df, aes(x=Body_Height, fill=Species)) +
+  geom_histogram(alpha=0.5, position="identity", bins=30) +
+  labs(title="Body Height Distribution by Species", x="Body Height", y="Count") +
+  scale_fill_manual(values=c("red", "blue"))
+
+```
+
+### b. Do the same comparison as in a. but with boxplots. If you want to use the ggplot2-package, use the functions 'ggplot' and 'geom_boxplot'.
+
+```{r setup13, include=TRUE, collapse=TRUE}
+# Create the boxplot plot
+ggplot(new_df, aes(x=Species, y=Body_Height, fill=Species)) +
+  geom_boxplot(alpha=0.5, position="dodge") +
+  labs(title="Body Height Distribution by Species", x="Species", y="Body Height") +
+  scale_fill_manual(values=c("red", "blue"))
+
+```
+
+### c. Save the plots with the 'png', 'pdf', and 'svg' formats. In which situation would you use which file format?
+
+```{r setup14, include=TRUE, collapse=TRUE}
+# Save the plot
+ggsave("temp_save.png", plot = last_plot(), width = 6, height = 4, dpi = 300)
+ggsave("temp_save.pdf", plot = last_plot(), width = 6, height = 4, dpi = 300)
+# install.packages("svglite") first
+library(svglite)
+ggsave("temp_save.svg", plot = last_plot(), width = 6, height = 4, dpi = 300, device = "svg")
+```
+
+If we need a lossless, web-compatible format that supports transparency, we might choose PNG.
+if we need a high-quality vector format that supports CMYK colors and can be embedded in a document, we might choose PDF.
+if we need a scalable, web-compatible vector format, we might choose SVG.
+## 2.
+Load the gene expression data matrix from the 'microarray_data.tab' dataset provided in the shared folder, it is a big tabular separated matrix.
+### a.
+How big is the matrix in terms of rows and columns?
+
+```{r setup15, include=TRUE, collapse=TRUE}
+# Load the data
+data <- read.table("microarray_data.tab", header = TRUE, sep = "\t")
+
+# Get the dimensions of the matrix
+dim(data)
+```
+
+As shown, the matrix has 553rows and 1000columns.
+### b.
+Count the missing values per gene and visualize this result.
+
+```{r setup16, include=TRUE, collapse=TRUE}
+# Count the missing values per gene
+missing_values <- apply(data, 1, function(x) sum(is.na(x)))
+missing_values
+# Visualize the result
+hist(missing_values, main = "Missing Values per Gene", xlab = "Number of Missing Values")
+```
+
+### c. Find the genes for which there are more than X% (X=10%, 20%, 50%) missing values.
+
+```{r setup17, include=TRUE, collapse=TRUE}
+# Calculate the percentage of missing values for each gene
+percent_missing <- apply(is.na(data), 1, mean) * 100
+
+# Find the genes with more than X% missing values, where X is 10%, 20%, and 50%
+X_values <- c(10, 20, 50)
+for (X in X_values) {
+  missing_genes <- rownames(data)[percent_missing > X]
+  cat("Genes with more than", X, "% missing values:\n")
+  print(missing_genes)
+}
+```
+
+### d. Replace the missing values by the average expression value for the particular gene. (Note: Imputing data has to be used with caution!)
+
+```{r setup18, include=TRUE, collapse=TRUE}
+# Replace missing values with the average expression value for the particular gene
+for (gene in colnames(data)) {
+  gene_values <- data[,gene]
+  missing_indices <- is.na(gene_values)
+  if (any(missing_indices)) {
+    avg_value <- mean(gene_values, na.rm=TRUE)
+    gene_values[missing_indices] <- avg_value
+    data[,gene] <- gene_values
+  }
+}
+head(data)
+```
+
+# Task 8
+
+## 1. Install the Tidybiology package, which includes the data 'chromosome' and 'proteins' devtools::install_github("hirscheylab/tidybiology")
+
+### a. Extract summary statistics (mean, median and maximum) for the following variables from the 'chromosome' data: variations, protein coding genes, and miRNAs. Utilize the tidyverse functions to make this as simply as possible.
+
+```{r setup19, include=TRUE, collapse=TRUE}
+# Load the chromosome data
+library(ggplot2)
+data(chromosome)
+library(tidybiology)
+# Extract summary statistics for variations, protein coding genes, and miRNAs
+chromosome %>%
+  summarize(
+    mean_variations = mean(variations),
+    median_variations = median(variations),
+    max_variations = max(variations),
+    mean_protein_coding_genes = mean(protein_codinggenes),
+    median_protein_coding_genes = median(protein_codinggenes),
+    max_protein_coding_genes = max(protein_codinggenes),
+    mean_miRNAs = mean(mi_rna),
+    median_miRNAs = median(mi_rna),
+    max_miRNAs = max(mi_rna)
+  )
+```
+
+### b. How does the chromosome size distribute? Plot a graph that helps to visualize this by using ggplot2 package functions.
+
+```{r setup20, include=TRUE, collapse=TRUE}
+# Create a histogram of chromosome sizes
+ggplot(chromosome, aes(x = basepairs)) +
+  geom_histogram(binwidth = 10000000, fill = "blue", color = "white") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Distribution of Chromosome Sizes",
+       x = "Size (base pairs)", y = "Frequency")
+```
+
+### c. Does the number of protein coding genes or miRNAs correlate with the length of the chromosome? Make two separate plots to visualize these relationships.
+
+```{r setup21, include=TRUE, collapse=TRUE}
+# Create a scatterplot for protein coding genes
+ggplot(chromosome, aes(x = basepairs, y = protein_codinggenes)) +
+  geom_point(color = "blue") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Correlation between Chromosome Size and Protein Coding Genes",
+       x = "Size (base pairs)", y = "Protein Coding Genes")
+
+# Create a scatterplot for miRNAs
+ggplot(chromosome, aes(x = basepairs, y = mi_rna)) +
+  geom_point(color = "green") +
+  geom_smooth(method = "lm", se = FALSE, color = "red") +
+  scale_x_continuous(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  labs(title = "Correlation between Chromosome Size and miRNAs",
+       x = "Size (base pairs)", y = "miRNAs")
+```
+
+### d. Calculate the same summary statistics for the 'proteins' data variables length and mass. Create a meaningful visualization of the relationship between these two variables by utilizing the ggplot2 package functions. Play with the colors, theme- and other visualization parameters to create a plot that pleases you.
+
+```{r setup22, include=TRUE, collapse=TRUE}
+# To calculate the summary statistics for the 'proteins' data variables length and mass, we can use the summarize() function from the dplyr package.
+proteins_summary <- proteins %>%
+  summarize(mean_length = mean(length),
+            median_length = median(length),
+            max_length = max(length),
+            mean_mass = mean(mass),
+            median_mass = median(mass),
+            max_mass = max(mass))
+
+proteins_summary
+```
+
+```{r setup23, include=TRUE, collapse=TRUE}
+# Use the ggplot() function to create the plot, and add geom_point() to add the points.
+ggplot(proteins, aes(x = length, y = mass)) +
+  geom_point() +
+  labs(x = "Length", y = "Mass") +
+  theme_classic()
+```
