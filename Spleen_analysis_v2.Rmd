@@ -1,0 +1,256 @@
+---
+title: "Analys of Spleen TM"
+output: html_notebook
+author: "Martin Loza"
+date: "23/03/17"
+---
+
+This notebook it to learn how to access the different data and metadata in a Seurat object.
+
+```{r setup}
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(here)
+
+#Global variables
+seed = 777 
+#directory where the spleen data is stored
+in_dir <- here("Data/Spleen_TM")
+#directory where you want to save your results (plots)
+out_dir <- here("Results/Analysis_Spleen_TM")
+n_dims = 15
+
+#Functions
+
+GetUMAP <- function(object = NULL, dims = 10, reduction = "pca", PCA = TRUE, scale = TRUE, seed = 42, verbose = FALSE, ...){
+  if(scale)
+    object <- Seurat::ScaleData(object, verbose = verbose, ...)
+  if(PCA)
+    object <- Seurat::RunPCA(object, npcs = dims, verbose = verbose, ...)
+  
+  object <- Seurat::RunUMAP(object, reduction = reduction, dims = 1:dims, seed.use = seed, verbose = verbose, ...)
+  
+  return(object)
+}
+
+```
+
+## Load the data
+
+```{r}
+spleen <- readRDS(file = paste0(in_dir, "/Raw.Rds"))
+spleen
+```
+
+```{r}
+spleen$Droplets$batch <- "droplets"
+spleen$Facs$batch <- "facs"
+```
+
+```{r}
+spleen <- Reduce(f = merge, x = spleen)
+# spleen <- merge(spleen[[1]],spleen[[2]])
+```
+
+```{r}
+spleen
+table(spleen$batch)
+```
+
+```{r}
+spleen <- NormalizeData(object = spleen)
+spleen <- FindVariableFeatures(object = spleen)
+```
+```{r}
+GetIntersectHVF <- function(object_ls = NULL, n_features = 2000){
+  object_ls <- lapply(X = object_ls, FUN = FindVariableFeatures, nfeatures = n_features, verbose = FALSE)
+  independent_features <- lapply(X = object_ls, FUN = VariableFeatures)
+  intersection_features <- Reduce(f = intersect, x = independent_features)
+  return(intersection_features)
+}
+##Name: FindIntegrationHVF
+##Input: Seurat object list, number of independent features to search within a given range
+##Output: Integration features
+FindIntegrationHVF <- function(object_ls = NULL, n_features = 2000, 
+                              range = 500, init_nVF = 2000,
+                              gain = 0.8, max_it = 100, verbose = TRUE){
+  # Init 
+  found_HFV <- 0
+  n_independent_features = init_nVF
+  it = 1
+  
+  #While the difference between the number of found VF and the objective number of VF are more or less than the fixed range
+  while(abs(n_features - length(found_HFV)) > range){
+    
+    # If we get to the maximum iterations, we stop and send an error.
+    if(it > max_it){
+      stop(call. = TRUE, "Error. The desired number of VF cannot be fulfilled within the maximum number of iterations. Try to reduce the number of n_features or to increase the gain of the search algorithm.")
+    }
+    
+    #Get the HVF as the intersection of independent HVF among batches
+    found_HFV <- GetIntersectHVF(object_ls = object_ls, n_features = n_independent_features)
+    
+    #Update the new number of independent variable features
+    n_independent_features <- round(n_independent_features + gain*(n_features + range - length(found_HFV)), 
+                                    digits = -2)
+    #Update the iteration
+    it <-  it + 1
+  }
+  
+  #If verbose, print general information of the HVF
+  if(verbose){
+    cat("Number of independent VF: ", n_independent_features, "\nNumber of VF after intersection: ", length(found_HFV))
+  }
+  return(found_HFV)
+}
+```
+
+```{r}
+data_ls <- SplitObject(object = spleen, split.by = "batch")
+intersected_VFs <- GetIntersectHVF(object_ls = data_ls, n_features = 2000)
+```
+
+
+```{r}
+library(Canek)
+Canek <- Canek::RunCanek(x = spleen, batches = "batch", features = intersected_VFs, pcaDim = 20, kNN = 50, correctEmbeddings = TRUE, estMethod = "Mean")
+Canek <- GetUMAP(object = Canek, dims = 15, reduction = "canek")
+```
+
+```{r}
+DimPlot(object = Canek, reduction = "umap", group.by = "batch")
+```
+
+```{r}
+spleen <- ScaleData(spleen)
+Uncorrected <- RunPCA(object = spleen, features = intersected_VFs)
+Uncorrected <- RunUMAP(object = Uncorrected, dims = 1:20)
+```
+
+```{r }
+DimPlot(object = Uncorrected, reduction = "umap", group.by = "batch")
+```
+
+
+```{r}
+CorrectBatch(estMethod = "Mean")
+```
+
+
+
+
+```{r}
+spleen
+cat("\nThese are the available annotations: \n\n")
+colnames(spleen[[]])
+```
+explore the Tabula Muris analysis
+
+```{r}
+table(spleen$cell_ontology_class)
+table(spleen$mouse.sex)
+```
+ Cell_ontology_class corresponds to the annotated cell types
+
+```{r}
+p <- Seurat::DimPlot(object = spleen, reduction = "tsne", group.by = "cell_ontology_class")
+p
+```
+
+```{r}
+Seurat::DimPlot(object = spleen, reduction = "pca", group.by = "cell_ontology_class")
+```
+
+
+Let's do our own analysis!!
+
+## Pre-processing
+
+```{r}
+spleen <- Seurat::NormalizeData(object = spleen, verbose = FALSE)
+spleen <- Seurat::FindVariableFeatures(object = spleen, nfeatures = 2000, verbose = FALSE)
+spleen <- Seurat::ScaleData(object = spleen, verbose = FALSE)
+spleen <- Seurat::RunPCA(object = spleen,   verbose = FALSE)
+```
+
+```{r}
+Seurat::DimPlot(object = spleen, reduction = "pca", group.by = "cell_ontology_class")
+```
+
+```{r}
+Seurat::ElbowPlot(object = spleen, ndims = 50)
+```
+We will select 15 PC
+
+```{r}
+spleen <- RunUMAP(object = spleen, dims = 1:n_dims, reduction = "pca", verbose = FALSE)
+spleen
+```
+
+```{r}
+DimPlot(object = spleen, reduction = "umap", group.by =  "cell_ontology_class")
+```
+
+## Clustering
+
+```{r}
+#to use the Louvain algorithm we need to get a graph over the cells. We use the function FindNeighbors for this
+spleen <- Seurat::FindNeighbors(object = spleen, reduction = "pca",
+                                dims = 1:n_dims)
+for(res in c(0.2,0.5,0.8)){
+  spleen <- Seurat::FindClusters(object = spleen, resolution  = res,
+                                 verbose = FALSE)
+}
+rm(res)
+```
+
+Let's use the library "patchwork"
+
+```{r}
+library(patchwork)
+p <- list()
+for(res in c(0.2,0.5,0.8)){
+  cluster_label = paste0("RNA_snn_res.", res)
+  p[[cluster_label]] <- DimPlot(object = spleen, reduction = "umap", group.by = cluster_label, pt.size = 0.1)
+}
+```
+
+```{r fig.width=9}
+(p[[1]] + p[[2]] + p[[3]] & coord_fixed()) + patchwork::plot_layout(nrow = 3, heights = c(1,2,3)) 
+```
+
+```{r}
+(p[[1]] + p[[1]] + plot_layout(guides = "collect")) & theme_classic() & 
+    theme(axis.title.x  = element_text(size = 20, color = "red") ) # we need something called element, e.g. element_text, element_line
+```
+
+```{r fig.width=6}
+layout <- "
+abcc
+decc
+ffgg
+ffgg
+"
+
+p <- wrap_plots(a = p[[1]], b = p[[1]], c = p[[1]], d = p[[1]], e = p[[1]], f = p[[1]], g = p[[1]], 
+                design = layout, widths = 1, heights = 1)
+(p + plot_layout( guides = "collect") + plot_annotation(tag_levels = "I")) & coord_fixed()
+```
+
+
+
+```{r}
+colnames(spleen[[]])
+```
+
+
+
+
+
+
+
+
+
+
+
