@@ -1,0 +1,317 @@
+---
+title: "Presentation new"
+author: "WANZHE XU"
+date: "2023-03-20"
+output: html_document
+---
+# library
+```{r setup, include=FALSE}
+library(here)
+library(Canek)
+library(Seurat)
+library(ggplot2)
+library(patchwork)
+library(harmony)
+library(SeuratData)
+```
+
+# read data
+```{r}
+#Global variables
+seed = 777 
+n_dims = 15
+##Global Functions
+source("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Functions.R")
+```
+
+```{r}
+ifnb <- readRDS("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Data/Simulations/Raw.Rds")
+ifnb
+```
+
+
+
+```{r}
+# normalize and identify variable features for each dataset independently
+ifnb.list <- lapply(X = ifnb, FUN = function(x) {
+    x <- NormalizeData(x)
+    x <- FindVariableFeatures(x, selection.method = "vst", nfeatures = 2000)
+})
+
+# select features that are repeatedly variable across datasets for integration
+features <- SelectIntegrationFeatures(object.list = ifnb.list)
+```
+
+
+
+```{r}
+immune.anchors <- FindIntegrationAnchors(object.list = ifnb.list, anchor.features = features)
+```
+
+```{r}
+# this command creates an 'integrated' data assay
+immune.combined <- IntegrateData(anchorset = immune.anchors)
+```
+
+```{r}
+# specify that we will perform downstream analysis on the corrected data note that the
+# original unmodified data still resides in the 'RNA' assay
+DefaultAssay(immune.combined) <- "integrated"
+
+# Run the standard workflow for visualization and clustering
+immune.combined <- ScaleData(immune.combined, verbose = FALSE)
+immune.combined <- RunPCA(immune.combined, npcs = 30, verbose = FALSE)
+immune.combined <- RunUMAP(immune.combined, reduction = "pca", dims = 1:30)
+#immune.combined <- FindNeighbors(immune.combined, reduction = "pca", dims = 1:30)
+#immune.combined <- FindClusters(immune.combined, resolution = 0.5)
+```
+
+# merge after read ifnb
+```{r}
+ifnb_before_merge <- Reduce(f = merge, x = ifnb)
+colnames(ifnb_before_merge[[]])
+```
+
+
+# PCA before integrate
+```{r}
+ifnb_before_merge <- Seurat::NormalizeData(object = ifnb_before_merge, verbose = FALSE)
+
+ifnb_before_merge <- Seurat::FindVariableFeatures(object = ifnb_before_merge, nfeatures = 2000, verbose = FALSE)
+
+ifnb_before_merge <- ScaleData(object = ifnb_before_merge, verbose = FALSE)
+
+ifnb_before_merge <- Seurat::RunPCA(object = ifnb_before_merge, verbose = FALSE)
+
+
+```
+
+```{r}
+DimPlot(object = ifnb_before_merge, reduction = "pca", group.by = "batch")
+```
+
+```{r}
+ifnb_before_merge <- RunUMAP(object = ifnb_before_merge, dims = 1:10, reduction = "pca", verbose = FALSE)
+DimPlot(ifnb_before_merge, reduction = "umap", group.by = "batch")
+```
+
+
+# PCA after integrate
+```{r}
+DimPlot(object = immune.combined, reduction = "pca", group.by = "batch")
+```
+
+# UMAP after integrate
+```{r}
+DimPlot(object = immune.combined, reduction = "umap", group.by = "batch")
+```
+
+
+
+# colnames(ifnb.list$CTRL[[]])
+
+```{r}
+# Visualization
+p1 <- DimPlot(immune.combined, reduction = "umap", group.by = "stim")
+p2 <- DimPlot(immune.combined, reduction = "umap", label = TRUE, repel = TRUE)
+p1 + p2
+```
+
+```{r}
+DimPlot(immune.combined, reduction = "umap", split.by = "stim")
+```
+
+```{r}
+source("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Functions.R")
+```
+
+# Object Harmony
+# PCA after integrate
+```{r}
+harmony <- RunHarmony(object = immune.combined, reduction = "pca", group.by = "batch")
+```
+
+```{r}
+DimPlot(object = harmony, reduction = "pca", group.by = "batch")
+```
+
+# get UMAP Harmony
+```{r}
+Harmony <- RunUMAP(object = harmony, dims = 1:10, reduction = "harmony", verbose = FALSE)
+
+DimPlot(object = Harmony, reduction = "umap", group.by = "batch")
+```
+
+
+
+# Object Seurat
+
+```{r}
+Seurat <- Seurat::RunPCA(object = immune.combined, verbose = FALSE)
+
+DimPlot(object = Seurat, reduction = "pca", group.by = "batch")
+```
+
+# GetUMAP Seurat
+```{r}
+Seurat <- RunUMAP(object = Seurat, dims = 1:10, reduction = "pca", verbose = FALSE)
+
+DimPlot(object = Seurat, reduction = "umap", group.by = "batch")
+```
+
+
+
+# object Canek
+```{r}
+# Canek <- Canek::RunCanek(object = immune.combined, reduction = "pca", group.by = "batch")
+Canek <- Canek::RunCanek(immune.combined, batches = "batch")
+Canek <- ScaleData(Canek)
+Canek <- RunPCA(object = Canek, assay = "Canek")
+```
+
+# Canek PCA
+```{r}
+DimPlot(object = Canek, reduction = "pca", group.by = "batch")
+```
+# Canek Umap
+
+```{r}
+Canek <- RunUMAP(object = Canek, dims = 1:10, assay =  "Canek",  reduction = "pca", verbose = FALSE)
+
+DimPlot(object = Canek, reduction = "umap", group.by = "batch")
+```
+
+
+
+```{r}
+# Canek2
+Canek2 <- RunCanek(immune.combined, batches = "batch", correctEmbeddings = TRUE)
+set.seed(seed)
+Canek2 <- RunUMAP(object = Canek2, dims = 1:10, reduction =  "canek")
+```
+
+
+
+```{r fig.width=10, fig.height=8}
+p1 <- DimPlot(ifnb_before_merge, reduction = "umap", group.by = "batch") + ggtitle("Uncorrected")
+p3 <- DimPlot(object = Harmony, reduction = "umap", group.by = "batch") + ggtitle("Harmony")
+p4 <- DimPlot(object = Seurat, reduction = "umap", group.by = "batch") + ggtitle("Seurat")
+p5 <- DimPlot(object = Canek, reduction = "umap", group.by = "batch") + ggtitle("Canek")
+p6 <- DimPlot(object = Canek2, reduction = "umap", group.by = "batch") + ggtitle("Canek2")
+p1  + p3 + p4 + p5 + p6
+```
+
+
+```{r fig.width=8, fig.height=4}
+p1 <- DimPlot(ifnb_before_merge, reduction = "umap", group.by = "celltype") + ggtitle("Uncorrected")
+p3 <- DimPlot(object = Harmony, reduction = "umap", group.by = "celltype") + ggtitle("Harmony")
+p4 <- DimPlot(object = Seurat, reduction = "umap", group.by = "celltype") + ggtitle("Seurat")
+p5 <- DimPlot(object = Canek, reduction = "umap", group.by = "celltype") + ggtitle("Canek")
+p6 <- DimPlot(object = Canek2, reduction = "umap", group.by = "celltype") + ggtitle("Canek2")
+p1 + p4 + p6
+```
+
+# Clustering
+
+```{r fig.width=8, fig.height=4}
+Canek2 <- Seurat::FindNeighbors(object = Canek2, reduction = "canek",dims = 1:10)
+Canek2 <- Seurat::FindClusters(object = Canek2, resolution  = 0.5, verbose = FALSE)
+
+#to use the Louvain algorithm we need to get a graph over the cells. We use the function FindNeighbors for this
+for(res in c(0.2,0.5,0.8)){
+  Canek2 <- Seurat::FindClusters(object = Canek2, resolution  = res,
+                                 verbose = FALSE)
+}
+
+library(patchwork)
+p_canek <- list()
+for(res in c(0.2,0.5,0.8)){
+  cluster_label = paste0("RNA_snn_res.", res)
+  p_canek[[cluster_label]] <- DimPlot(object = Canek2, reduction = "umap", group.by = cluster_label, pt.size = 0.1)
+}
+# (p[[1]] + p[[2]] + p[[3]]) & coord_fixed()
+p_canek[[1]] + ggtitle("canek")
+```
+
+
+```{r fig.width=8, fig.height=4}
+immune.combined <- Seurat::FindNeighbors(object = immune.combined, reduction = "pca",dims = 1:10)
+immune.combined <- Seurat::FindClusters(object = immune.combined, resolution  = 0.2, verbose = FALSE)
+#to use the Louvain algorithm we need to get a graph over the cells. We use the function FindNeighbors for this
+for(res in c(0.2,0.5,0.8)){
+  immune.combined <- Seurat::FindClusters(object = immune.combined, resolution  = res,
+                                 verbose = FALSE)
+}
+
+library(patchwork)
+p_uncorrected <- list()
+for(res in c(0.2,0.5,0.8)){
+  cluster_label = paste0("integrated_snn_res.", res)
+  p_uncorrected[[cluster_label]] <- DimPlot(object = immune.combined, reduction = "umap", group.by = cluster_label, pt.size = 0.1)
+}
+#(p[[1]] + p[[2]] + p[[3]]) & coord_fixed()
+p_uncorrected[[1]] + ggtitle("uncorrected")
+```
+
+
+
+```{r fig.width=8, fig.height=4}
+Seurat <- Seurat::FindNeighbors(object = Seurat, reduction = "pca",dims = 1:10)
+Seurat <- Seurat::FindClusters(object = Seurat, resolution  = 0.5, verbose = FALSE)
+
+#to use the Louvain algorithm we need to get a graph over the cells. We use the function FindNeighbors for this
+for(res in c(0.2,0.5,0.8)){
+  Seurat <- Seurat::FindClusters(object = Seurat, resolution  = res,
+                                 verbose = FALSE)
+}
+
+library(patchwork)
+p_Seurat <- list()
+for(res in c(0.2,0.5,0.8)){
+  cluster_label = paste0("integrated_snn_res.", res)
+  p_Seurat[[cluster_label]] <- DimPlot(object = Seurat, reduction = "umap", group.by = cluster_label, pt.size = 0.1)
+}
+#(p[[1]] + p[[2]] + p[[3]]) & coord_fixed()
+p_Seurat[[1]] + ggtitle("Seurat")
+```
+
+
+```{r fig.width=8, fig.height=4}
+p_uncorrected[[1]] + ggtitle("uncorrected") +
+(p_Seurat[[1]] + ggtitle("Seurat")) +
+(p_canek[[1]] + ggtitle("canek"))
+
+```
+
+
+
+
+```{r}
+Canek2$mycluster <- Canek2$RNA_snn_res.0.2
+table(Canek2$mycluster)
+```
+
+```{r}
+# we use this functions if we want to get a set of markers for all the clusters
+# we want
+Idents(Canek2) <- "myclusters"
+deg <- Seurat::FindAllMarkers(object = Canek2, assay = "RNA", slot = "data", max.cells.per.ident = 700)
+# if we want to compare just a pair of clusters we use FindMarkers
+Canek2
+```
+
+```{r}
+
+```
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,0 +1,88 @@
+# ---
+# title: "Figure 3. Pseudo-batches"
+# author: "Martin Loza"
+# ---
+
+# This is the main workflow to reproduce the pseudo-batches test from Figure 3.
+
+## Setup
+library(here)
+library(Canek)
+library(Seurat)
+options(future.globals.maxSize = 4e10)
+
+dimPCA <- 10 # Number of PCA dimensions used in the analysis.
+per <- c(0.05, 0.15, 0.3) # Percentages of mean size used in kBET.
+#per <- c(0.05) # For tests
+resolution = 0.5 # Resolution used in clustering.
+algorithm <- 1 # Algorithm used in clustering.
+frac = 0.5 # Fraction of cells used to create the pseudo-batches.
+seed <- 777 # Lucky seed.
+rep = 10 # Number of test repetitions.
+batchKBET <- "batch" # Label used in kBET.
+batchSilhouette <- "seurat_clusters" # Label used in Silhouette.
+
+dataFile <- here("Data/Results/Spleen_TM/Raw.Rds") # Input data file's path.
+resultsFile <- here("Data/Results/Figure3") # Output data file's path.
+
+##Global Functions
+source(here("Functions.R"))
+
+## Load data
+xl <- readRDS(dataFile)
+xl
+
+## Droplet dataset
+x <- xl[["Droplets"]]
+x
+
+## Sampling data. For tests
+set.seed(seed)
+x <- SampleData(x, frac = 0.1, seed = seed)
+x
+
+## Data preprocessing
+set.seed(seed)
+x <- SeuratPreprocessing(x)
+
+for(i in seq_len(rep)){
+  
+  seed <- i # Seed same as i.
+  
+  ## Create the pseudo-baches
+  set.seed(seed)
+  idxSample <- sample(x = ncol(x), size = floor(frac*ncol(x)), replace = FALSE)
+  xl <- list("B1" = x[,idxSample], "B2" = x[,-idxSample])
+  # Set up labels
+  xl[["B1"]]$batch <- "Pseudo_batch_1"
+  xl[["B2"]]$batch <- "Pseudo_batch_2"
+  xl
+  
+  ## Corrections
+  set.seed(seed)
+  source(here("Results/CorrectDataPseudobatches.R"), knitr::knit_global())
+  
+  # We create a list with the correction results to ease downstream analyses.
+  datal <- list(Uncorrected = Uncorrected,
+                Canek = Canek,
+                MNN = MNN,
+                Seurat = Seurat,
+                scMerge = scMerge, 
+                ComBat = ComBat, 
+                Liger = Liger, 
+                Harmony = Harmony, 
+                Scanorama = Scanorama, 
+                ComBatseq = ComBatseq)
+  
+  ## Save corrections
+  saveRDS(object = datal, file = paste0(resultsFile, "/", i, "_datal.Rds"))
+   
+  ## Metrics
+  set.seed(seed)
+  source(here("Results/Metrics.R"), knitr::knit_global())
+  
+  ## Save scores
+  saveRDS(object = list(scoresKbet = scoresKbet, scoresSilhouette = scoresSilhouette), file =  paste0(resultsFile, "/", i, "_scores.RDS"))
+}
+
+

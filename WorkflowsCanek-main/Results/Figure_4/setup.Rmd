@@ -1,0 +1,127 @@
+---
+title: "Figure 4. Create simulated data"
+author: "Martin Loza"
+---
+
+In this workflow we simulate the data with and without batch-effects to use on Figure 4.
+
+## Init
+
+```{r}
+library(here)
+library(splatter)
+options(future.globals.maxSize = 4e10)
+
+seed = 321 # Seed.
+nCells = 1200 # Initial number of cells per batch.
+nGenes = 2000 # Number of genes. 
+method_C1_C2 = "paths" # Simulations method.
+group.prob_C1_C2 = c(0.5,0.5) # Celltype appearance probabilities.
+de.prob_C1_C2 = c(0.0,0.01) # Celltype differential expression probabilities.
+method_C3_C4_C5 = "groups" # Simulations method.
+group.prob_C3_C4_C5 = c(0.4,0.3,0.3) # Celltype appearance probabilities.
+de.prob_C3_C4_C5 = c(0.2,0.25,0.35) # Celltype differential expression probabilities.
+dataFile <- here("Data/Simulations")
+
+##Global Functions
+source(here("Functions.R"))
+```
+
+## Simulate data with Splatter
+
+```{r}
+params <- splatter::newSplatParams(batchCells = c(nCells,nCells,nCells), nGenes = nGenes)
+
+# Simulate Celltyes 1 and 2
+## With batch-effects
+sim1 <- splatter::splatSimulate(params, method = method_C1_C2, group.prob = group.prob_C1_C2, de.prob = de.prob_C1_C2, seed = seed, verbose = FALSE)
+
+## Without batch-effects
+sim11 <- splatter::splatSimulate(params, method = method_C1_C2, group.prob = group.prob_C1_C2, de.prob = de.prob_C1_C2, seed = seed, verbose = FALSE, batch.rmEffect = TRUE)
+
+# Simulate Celltyes 3,4, and 5
+## With batch-effects
+sim2 <- splatter::splatSimulate(params, method = method_C3_C4_C5, group.prob = group.prob_C3_C4_C5, de.prob = de.prob_C3_C4_C5, seed = seed, verbose = FALSE)
+
+## Without batch-effects
+sim22 <- splatter::splatSimulate(params, method = method_C3_C4_C5, group.prob = group.prob_C3_C4_C5, de.prob = de.prob_C3_C4_C5, seed = seed, verbose = FALSE, batch.rmEffect = TRUE)
+```
+
+## Setup simulated data
+
+### With batch-effects
+
+```{r}
+# Simulations with batch-effects
+data <- cbind(counts(sim1),counts(sim2))
+colnames(data) <- paste0("Cell", seq_len(ncol(data)))
+
+metaData1 <- as.data.frame(colData(sim1)[,c("Batch", "Group")])
+levels(metaData1$Group) <- c("Cell-1", "Cell-2")
+
+metaData2 <- as.data.frame(colData(sim2)[,c("Batch", "Group")])
+levels(metaData2$Group) <- c("Cell-3", "Cell-4", "Cell-5")
+
+metaData <- rbind(metaData1,metaData2)
+names(metaData) <- c("batch", "celltype")
+rownames(metaData) <- colnames(data)
+
+#Simulate batch specific celltypes and create seurat objects.
+
+## Batch 1 -> C1,C2,C3
+idx <- which((metaData$batch == "Batch1") & (metaData$celltype == "Cell-1" |
+                                             metaData$celltype == "Cell-2" |
+                                             metaData$celltype == "Cell-3"))
+B1 <- Seurat::CreateSeuratObject(counts = data[,idx], meta.data = metaData[idx,])
+
+## Batch 2 -> C2,C4
+idx <- which((metaData$batch == "Batch2") & (metaData$celltype == "Cell-2" |
+                                             metaData$celltype == "Cell-4"))
+B2 <- Seurat::CreateSeuratObject(counts = data[,idx], meta.data = metaData[idx,])
+
+## Batch 3 -> C1,C5
+idx <- which((metaData$batch == "Batch3") & (metaData$celltype == "Cell-1" |
+                                             metaData$celltype == "Cell-5"))
+B3 <- Seurat::CreateSeuratObject(counts = data[,idx], meta.data = metaData[idx,])
+
+xl <- list(B1 = B1, B2 = B2, B3 = B3)
+xl
+```
+
+### Without batch-effects
+
+```{r}
+# Simulations without batch-effects - GOLD STANDARD
+data <- cbind(counts(sim11),counts(sim22))
+colnames(data) <- paste0("Cell", seq_len(ncol(data)))
+
+metaData1 <- as.data.frame(colData(sim11)[,c("Batch", "Group")])
+levels(metaData1$Group) <- c("Cell-1", "Cell-2")
+
+metaData2 <- as.data.frame(colData(sim22)[,c("Batch", "Group")])
+levels(metaData2$Group) <- c("Cell-3", "Cell-4", "Cell-5")
+
+metaData <- rbind(metaData1,metaData2)
+names(metaData) <- c("batch", "celltype")
+rownames(metaData) <- colnames(data)
+
+## Batch 1 -> C1,C2,C3
+idx <- which((metaData$batch == "Batch1") & (metaData$celltype == "Cell-1" |
+                                             metaData$celltype == "Cell-2" |
+                                             metaData$celltype == "Cell-3"))
+## Batch 2 -> C2,C4
+idx <- c(idx, which((metaData$batch == "Batch2") & (metaData$celltype == "Cell-2" |
+                                                    metaData$celltype == "Cell-4")))
+
+## Batch 3 -> C1,C5
+idx <- c(idx, which((metaData$batch == "Batch3") & (metaData$celltype == "Cell-1" |
+                                                    metaData$celltype == "Cell-5")))
+
+GS <- Seurat::CreateSeuratObject(counts = data[,idx], meta.data = metaData[idx,])
+GS
+```
+
+```{r}
+saveRDS(object = xl, file = paste0(dataFile, "/Raw.Rds"))
+saveRDS(object = GS, file = paste0(dataFile, "/GS_Raw.Rds"))
+```

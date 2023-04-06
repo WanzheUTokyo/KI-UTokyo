@@ -1,0 +1,78 @@
+---
+title: "Assign healthy and T2D condition to pancreas datasets."
+author: "Martin Loza"
+---
+
+```{r setup, include=FALSE}
+library(here)
+library(Seurat)
+library(SeuratData)
+options(future.globals.maxSize = 4e10)
+
+dataFile <- here("Data/Pancreas") # Input and output data folder.
+
+##Global Functions
+source(here("Functions.R"))
+```
+
+# Pancreatics datasets
+
+```{r}
+if (! "panc8" %in% SeuratData::InstalledData()[["Dataset"]]) {
+  SeuratData::InstallData("panc8")
+}
+x <- SeuratData::LoadData("panc8")
+x <- UpdateSeuratObject(x)
+
+x$batch <- x$dataset # Batch labels
+x$condition <- "healthy" # Init condition
+xl <- SplitObject(x, split.by = "batch")
+```
+
+## T2D condition from Fluidgm
+
+```{r}
+data <- readRDS(paste0(dataFile,"/Fluidgm/pdata.Rds"))
+rownames(data) <- data$title
+```
+
+Cells match
+
+```{r}
+nameCells <- colnames(xl[["fluidigmc1"]])
+length(which(nameCells %in% rownames(data))) == length(nameCells)
+data <- data[nameCells,]
+```
+
+Assign T2D condition
+
+```{r}
+idxT2D <- which(data$characteristics_ch1.3 == "disease: Type 2 Diabetic")
+xl[["fluidigmc1"]]$condition[idxT2D] <- "T2D"
+table(xl[["fluidigmc1"]]$condition)
+```
+
+## T2D condition from smartSeq
+
+```{r}
+data <- readRDS(paste0(dataFile,"/SmartSeq/data.Rds"))
+data <- data[["type II diabetes mellitus"]][[]] 
+```
+
+```{r}
+nameCells <- colnames(xl[["smartseq2"]])
+idx <- rownames(data) %in% nameCells
+data <- data[idx,]
+data <- data[nameCells,]
+```
+
+```{r}
+xl[["smartseq2"]]$condition[rownames(data)] <- "T2D"
+table(xl[["smartseq2"]]$condition)
+```
+## Save data
+
+```{r}
+saveRDS(object = xl, file = paste0(dataFile,"/Raw.Rds"))
+```
+

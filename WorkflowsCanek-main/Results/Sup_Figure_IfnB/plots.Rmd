@@ -1,0 +1,107 @@
+---
+title: "IfnB correction supplementary figure."
+author: "Martin Loza"
+---
+
+This is the main workflow to reproduce the plots of the IfnB correction.
+
+```{r setup}
+library(here)
+library(patchwork)
+library(Seurat)
+library(ggplot2)
+library(ggrepel)
+options(future.globals.maxSize = 4e10)
+
+resultsFile <- here("Data/Sup_Figure_IfnB")
+mytheme <- theme_classic() + theme(text = element_text(size = 20)) 
+theme_set(mytheme)
+
+## Functions
+
+##Global Functions
+source(here("Functions.R"))
+
+## Plot corrections 
+plotCorrection <- function(object = NULL, title = "correction", reduction1 = "pca", reduction2 = "umap"){
+  
+  p1 <- DimPlot(object, reduction = reduction1, group.by = "batch") + 
+    ggtitle(title) + mytheme
+  p2 <- DimPlot(object, reduction = reduction2, group.by = "batch") + mytheme + theme(plot.title = element_blank())
+  p3 <- DimPlot(object, reduction = reduction1, group.by = "celltype") + mytheme + theme(plot.title = element_blank())
+  p4 <- DimPlot(object, reduction = reduction2, group.by = "celltype") + mytheme + theme(plot.title = element_blank())
+  
+  pa <- p1 + p2 + ggtitle(title) + plot_layout(guides = "collect", nrow = 1) 
+  pb <- p3 + p4 + ggtitle(title) + plot_layout(guides = "collect", nrow = 1)
+  
+  return(list(p1 = pa, p2 = pb))
+}
+```
+
+## Load data
+
+```{r}
+datal <- readRDS(file = paste0(resultsFile, "/datal.Rds"))
+scores <- readRDS(file = paste0(resultsFile, "/scores.RDS"))
+scoresKbet <- scores$scoresKbet
+scoresSilhouette <- scores$scoresSilhouette
+```
+
+## BioRxiv v1 Figure 5.
+
+```{r fig.height=45, fig.width=20}
+plots <- lapply(names(datal), function(n){
+  title = n
+  
+  if(n == "Liger"){
+    reduction1 = "Liger"
+  }else if(n == "Harmony"){
+    reduction1 = "harmony"
+  }else{
+    reduction1 = "pca"
+  }
+  
+  return(plotCorrection(object = datal[[n]], title = title, reduction1 = reduction1))
+})
+names(plots) <- names(datal)
+
+layout <- "
+ab
+cd
+ef
+gh
+ij
+kl
+mn
+op
+qr
+"
+
+p <- wrap_plots(a = plots[[1]]$p1, b = plots[[1]]$p2,
+                c = plots[[2]]$p1, d = plots[[2]]$p2,
+                e = plots[[3]]$p1, f = plots[[3]]$p2, 
+                g = plots[[4]]$p1, h = plots[[4]]$p2,
+                i = plots[[5]]$p1, j = plots[[5]]$p2,
+                k = plots[[6]]$p1, l = plots[[6]]$p2,
+                m = plots[[7]]$p1, n = plots[[7]]$p2,
+                o = plots[[8]]$p1, p = plots[[8]]$p2,
+                q = plots[[9]]$p1, r = plots[[9]]$p2,
+                design = layout)
+p
+```
+
+## Metrics 
+
+```{r}
+df <- data.frame("Silhouette" = t(scoresSilhouette), "kBET" = t(scoresKbet), Method = colnames(scoresKbet))
+
+nudge_y <- 0
+nudge_x <- 0
+p <- ggplot(df, aes(Silhouette, kBET, color = Method, label = Method)) + 
+  geom_point(size = 7, alpha = 0.5) +
+  geom_text_repel(size = 7, alpha = 1.0, direction = "both", nudge_y = nudge_y, nudge_x = nudge_x) + 
+  NoLegend() + ylab("kBET(acceptance rate)")
+
+p
+```
+

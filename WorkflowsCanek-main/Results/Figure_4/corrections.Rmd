@@ -1,0 +1,112 @@
+---
+title: "Figure 4. Simulations"
+author: "Martin Loza"
+---
+
+This is the main workflow to reproduce the simulated data correction shown in Figure 4.
+
+```{r setup}
+library(here)
+library(Canek)
+#library(batchelor)
+library(Seurat)
+options(future.globals.maxSize = 4e10)
+
+dimPCA <- 10 # Number of PCA dimensions used in the analysis.
+#per <- c(0.05, 0.15, 0.3) # Percentages of mean size used in kBET.
+per <- c(0.05) # Percentages of mean size used in kBET for test
+seed <- 666 # Luck seed.
+batchKBET <- "batch" # Label used in kBET.
+batchSilhouette <- "celltype" # Label used in Silhouette.
+
+dataFile <- here("Data/Simulations") # Input data file's path.
+resultsFile <- here("Data/Figure4") # Output data file's path.
+
+##Global Functions
+source("Functions.R")
+```
+
+# Load data
+
+```{r}
+xl <- readRDS("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Data/Figure4/datal.Rds")
+GS <- readRDS("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Data/GS_Raw.Rds")
+xl
+GS
+```
+
+## Sampling data. For tests
+
+```{r}
+set.seed(seed)
+idxSample <- sample(x = ncol(GS), size = floor(0.4*ncol(GS)), replace = FALSE)
+
+GS <- GS[,idxSample]
+
+x <- Reduce(merge, xl)
+x <- x[,idxSample]
+xl <- Seurat::SplitObject(x, split.by = "batch")
+
+GS
+xl
+```
+
+# Data preprocessing
+
+```{r}
+set.seed(seed)
+xl <- lapply(xl, SeuratPreprocessing)
+set.seed(seed)
+GS <- SeuratPreprocessing(GS)
+```
+
+## Gold standard PCA and UMAP
+
+```{r}
+GS <- GetUMAP(GS, dims = dimPCA)
+```
+
+## Corrections
+
+```{r}
+#ks <- c(3,2,2) # Ks for scMerge
+#set.seed(seed)
+source("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Results/CorrectData.R", knitr::knit_global())
+```
+
+We create a list with the correction results to ease downstream analyses.
+
+```{r}
+datal <- list(GS = GS,
+              Uncorrected = Uncorrected,
+              Canek = Canek,
+              #Canek2 = Canek2,
+              #MNN = MNN,
+              Seurat = Seurat,
+              #scMerge = scMerge, 
+              #ComBat = ComBat, 
+              #Liger = Liger, 
+              Harmony = Harmony
+              #Scanorama = Scanorama,
+              # ComBatseq = ComBatseq
+              )
+```
+
+## Save corrections
+
+```{r}
+saveRDS(object = datal, file = ("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Data/Figure4/datal.Rds"))
+```
+
+## Metrics
+
+```{r}
+set.seed(seed)
+source(("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Results/Metrics.R"), knitr::knit_global())
+```
+
+## Save scores
+
+```{r}
+saveRDS(object = list(scoresKbet = scoresKbet, scoresSilhouette = scoresSilhouette), file = ("/Users/xuwanzhe/Desktop/KI UTokyo joint course/WorkflowsCanek-main/Data/Figure4/scores.RDS"))
+```

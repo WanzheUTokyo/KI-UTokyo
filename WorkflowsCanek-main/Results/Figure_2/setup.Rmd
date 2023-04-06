@@ -1,0 +1,93 @@
+---
+title: "Figure 1. Celltypes assignment"
+author: "Martin Loza"
+---
+
+```{r setup}
+library(here)
+library(patchwork)
+library(Seurat)
+library(RNAseqAnalysis)
+options(future.globals.maxSize = 4e10)
+
+
+seed = 777
+
+dataFile <- here("Data/Jurkat_293t") 
+
+##Global Functions
+source(here("Functions.R"))
+```
+
+##  Load data
+
+```{r}
+Jurkat <- readRDS(paste0(dataFile, "/Jurkat.Rds"))
+t293 <- readRDS(paste0(dataFile, "/t293.Rds"))
+Mix50_50 <- readRDS(paste0(dataFile, "/Mix50_50.Rds"))
+```
+
+## Setup labels
+
+```{r}
+Jurkat[["batch"]] <- "Jurkat"
+t293[["batch"]] <- "293t"
+Mix50_50[["batch"]] <- "50_50"
+
+Jurkat[["celltype"]] <- "Jurkat"
+t293[["celltype"]] <- "293t"
+```
+
+## Pre-processing
+
+```{r}
+Mix50_50 <- SeuratPreprocessing(object = Mix50_50)
+```
+
+## PCA
+
+```{r}
+set.seed(seed)
+Mix50_50 <- Seurat::ScaleData(object = Mix50_50, verbose = FALSE)
+Mix50_50 <- RunPCA(object = Mix50_50, assay = "RNA", verbose = FALSE)
+```
+
+## kMeans clustering to define celltypes on 50_50 dataset
+
+```{r}
+features <- Seurat::VariableFeatures(object = Mix50_50)
+pcaData <- Seurat::GetAssayData(object = Mix50_50, assay = "RNA", slot = "data")[features,]
+pcaData <- as.matrix(pcaData)
+pcaData <- prcomp(x = t(pcaData), center = TRUE, scale. = TRUE, rank. = 3)
+
+set.seed(seed)
+clusters <- kmeans(pcaData$x, centers = 2)$cluster
+
+Mix50_50[["pca"]] <- Seurat::CreateDimReducObject(embeddings = pcaData$x, key = "PC_", assay = "RNA")
+Mix50_50[["clusters"]] <- clusters
+```
+
+## Plot clusters and markers 
+
+```{r}
+DimPlot(Mix50_50, group.by = "clusters") / FeaturePlot(Mix50_50, features = c("XIST", "CD3D"))
+```
+
+We assign the celltype labels in accordance with celltype specific markers. CD3D's expression (Jurkat cells) correlates with cluster 1, and XIST's expression (293t cells) with cluster 2. 
+
+```{r}
+celltype <- factor(clusters, labels = c("Jurkat", "293t"))
+Mix50_50[["celltype"]] <- celltype
+DimPlot(Mix50_50, group.by = "celltype") / FeaturePlot(Mix50_50, features = c("XIST", "CD3D"))
+```
+
+```{r}
+xl <- list(Jurkat = Jurkat, t293 = t293, Mix50_50 = Mix50_50)
+```
+
+# Save Datasets
+
+```{r}
+saveRDS(xl, file = here(paste0(dataFile, "/Raw.Rds")))
+```
+

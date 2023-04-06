@@ -1,0 +1,42 @@
+---
+title: "Setup Spleen datasets from Tabula Muris"
+author: "Martin Loza"
+---
+
+```{r setup}
+library(here)
+library(Seurat)
+options(future.globals.maxSize = 4e10)
+
+seed = 777 
+dataFile <- here("Data/Spleen_TM") 
+
+##Global Functions
+source(here("Functions.R"))
+```
+
+## Load Droplet and Facs spleen datasets
+
+```{r}
+load(paste0(dataFile, "/droplet_Spleen_seurat_tiss.Robj"))
+x_Droplets <- tiss
+x_Droplets <- Seurat::UpdateSeuratObject(x_Droplets)
+x_Droplets[["batch"]] <- "Droplets"
+x_Droplets[["celltype"]] <- x_Droplets[["cell_ontology_class"]]
+ 
+load(paste0(dataFile, "/facs_Spleen_seurat_tiss.Robj"))
+x_Facs <- tiss
+x_Facs <- Seurat::UpdateSeuratObject(x_Facs)
+x_Facs[["batch"]] <- "Facs"
+x_Facs[["celltype"]] <- x_Facs[["cell_ontology_class"]]
+
+xl <- list(Droplets = x_Droplets, Facs = x_Facs)
+xl
+```
+
+## Save data
+
+```{r}
+saveRDS(object = xl, file = paste0(dataFile,"/Raw.Rds"))
+```
+

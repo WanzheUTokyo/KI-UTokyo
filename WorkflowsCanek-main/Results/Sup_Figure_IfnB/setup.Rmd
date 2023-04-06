@@ -1,0 +1,36 @@
+---
+title: "Setup IfnB datasets."
+author: "Martin Loza"
+---
+
+```{r setup}
+library(here)
+library(Seurat)
+options(future.globals.maxSize = 4e10)
+
+dataFile <- here("Data/IfnB")
+
+##Global Functions
+source(here("Functions.R"))
+```
+
+## Load data and Create Seurat Object
+
+```{r}
+if (! "ifnb" %in% SeuratData::InstalledData()[["Dataset"]]) {
+  SeuratData::InstallData("ifnb")
+}
+x <- SeuratData::LoadData("ifnb")
+x <- UpdateSeuratObject(x)
+x[["batch"]] <- x[["stim"]]
+x[["celltype"]] <- x[["seurat_annotations"]]
+
+xl <- SplitObject(x, split.by = "stim")
+xl
+```
+
+## Save data
+
+```{r}
+saveRDS(object = xl, file = paste0(dataFile,"/Raw.Rds"))
+```

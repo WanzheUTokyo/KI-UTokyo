@@ -1,0 +1,200 @@
+---
+title: "Figure 2 plots"
+author: "Martin Loza"
+---
+
+This is the main workflow to reproduce the Jurkat/293t cells correction plots in Figure 2.
+
+```{r setup}
+library(here)
+library(patchwork)
+library(Seurat)
+library(ggplot2)
+library(ggrepel)
+options(future.globals.maxSize = 4e10)
+source(here("Functions.R"))
+
+resultsFile <- here("Data/Figure2")
+plotsFile <- here("Figure2")
+mytheme <- theme_classic() + theme(text = element_text(size = 20), legend.text=element_text(size=16))
+theme_set(mytheme)
+```
+
+# Load data
+
+```{r}
+datal <- readRDS(file = paste0(resultsFile, "/datal.Rds"))
+scores <- readRDS(file = paste0(resultsFile, "/scores.RDS"))
+scoresKbet <- scores$scoresKbet
+scoresSilhouette <- scores$scoresSilhouette
+```
+
+## Setup assay
+
+We want to plot CD3D and XIST gene expressions, but they were not selected as variable features during integrations. Then, we add the original assay to the corrections.
+
+```{r}
+RNA <- Seurat::Assays(datal[["Seurat"]], slot = "RNA")
+methods <- names(datal)
+datal <- lapply(methods, function(m){
+  object <- datal[[m
+                   ]]
+  if(m == "Uncorrected")
+    object[["RNA2"]] <- RNA
+  else
+    object[["RNA"]] <- RNA
+  
+  return(object)
+})
+names(datal) <- methods
+
+# Set max value for color pallete
+maxExp = max(GetAssayData(datal[["Uncorrected"]], assay = "RNA2", slot = "data")[c("CD3D","XIST"),])
+```
+
+## Metrics plot
+
+```{r}
+methods <- names(datal)
+pMetrics <-  plotMetrics(scoresKbet = scoresKbet, scoresSilhouette = scoresSilhouette, methods = methods, nudge_y = 0.01)
+```
+
+## Corrections plots original coordinates
+
+```{r}
+methods <- names(datal)
+plotsOriginal <- lapply(methods, function(m){
+  if(m == "Liger"){
+    reduction = "Liger"
+  }else if(m == "Harmony"){
+    reduction = "harmony"
+  }else{
+    reduction = "pca"
+  }
+  
+  return(plotCorrection(object = datal[[m]], groups = c("batch", "celltype"), reduction = reduction))
+})
+names(plotsOriginal) <- methods
+```
+
+## Corrections plots umap
+
+```{r}
+methods <- names(datal)
+plotsUmap <- lapply(methods, function(m){
+  reduction = "umap"
+  
+  return(plotCorrection(object = datal[[m]], groups = c("batch", "celltype"), reduction = reduction))
+})
+names(plotsUmap) <- methods
+```
+
+## Features plots
+
+```{r}
+methods <- names(datal)
+plotsFeatures <- lapply(methods, function(m){
+  if(m == "Liger"){
+    reduction = "umap"
+  }else if(m == "Harmony"){
+    reduction = "harmony"
+  }else{
+    reduction = "pca"
+  }
+  
+  return(plotFeatures(object = datal[[m]], features = c("XIST", "CD3D"), reduction = reduction, colorLimits = c(0, maxExp)))
+})
+names(plotsFeatures) <- methods
+```
+
+## BioRxiv v2 Figure 2.
+
+# Test 3_1_2
+
+```{r fig.height=12, fig.width=16}
+plots <- plotsOriginal
+pa <- plots[["Uncorrected"]]$batch + ggtitle("Uncorrected", subtitle = "Batch") + mytheme 
+pb <- plots[["Uncorrected"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+pc <- plotsFeatures[["Uncorrected"]]$XIST + ggtitle("", subtitle = "XIST") + mytheme 
+pd <- plotsFeatures[["Uncorrected"]]$CD3D + ggtitle("", subtitle =  "CD3D") + mytheme 
+pe <- plots[["Canek"]]$celltype + ggtitle("Canek") + mytheme
+pf <- plots[["ComBat"]]$celltype  + ggtitle("ComBat") + mytheme
+pg <- plots[["MNN"]]$celltype + ggtitle("MNN") + mytheme
+ph <- plots[["Seurat"]]$celltype+ ggtitle("Seurat") + mytheme 
+pi <- pMetrics + mytheme
+
+layout <- "
+abcd
+efii
+ghii
+"
+
+p <- wrap_plots(a = pa, b = pb , c = pc, d = pd,
+                e = pe, f = pf, 
+                g = pg, h = ph,
+                i = pMetrics,
+                design = layout, widths = 1, heights = 1) 
+
+p
+```
+
+## Supplementary Figure (celltype & batch)
+
+
+```{r fig.height=20, fig.width=8}
+#plots <- plotsOriginal # Change this to obtain the original coordinates plot
+plots <- plotsUmap
+
+pUnco_1 <- plots[["Uncorrected"]]$batch + ggtitle("Uncorrected", subtitle = "Batch") + mytheme
+pUnco_2 <- plots[["Uncorrected"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pCanek_1 <- plots[["Canek"]]$batch + ggtitle("Canek", subtitle = "Batch") + mytheme
+pCanek_2 <- plots[["Canek"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pMNN_1 <- plots[["MNN"]]$batch + ggtitle("MNN", subtitle = "Batch") + mytheme
+pMNN_2 <- plots[["MNN"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pSeurat_1 <- plots[["Seurat"]]$batch + ggtitle("Seurat", subtitle = "Batch") + mytheme
+pSeurat_2 <- plots[["Seurat"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pComBat_1 <- plots[["ComBat"]]$batch + ggtitle("ComBat", subtitle = "Batch") + mytheme
+pComBat_2 <- plots[["ComBat"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pScanorama_1 <- plots[["Scanorama"]]$batch + ggtitle("Scanorama", subtitle = "Batch") + mytheme
+pScanorama_2 <- plots[["Scanorama"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pComBatseq_1 <- plots[["ComBatseq"]]$batch + ggtitle("ComBat-seq", subtitle = "Batch") + mytheme
+pComBatseq_2 <- plots[["ComBatseq"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pscMerge_1 <- plots[["scMerge"]]$batch + ggtitle("scMerge", subtitle = "Batch") + mytheme
+pscMerge_2 <- plots[["scMerge"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pHarmony_1 <- plots[["Harmony"]]$batch + ggtitle("Harmony", subtitle = "Batch") + mytheme
+pHarmony_2 <- plots[["Harmony"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+pLiger_1 <- plots[["Liger"]]$batch + ggtitle("Liger", subtitle = "Batch") + mytheme
+pLiger_2 <- plots[["Liger"]]$celltype + ggtitle("", subtitle = "Celltype") + mytheme
+
+layout <- "
+abcd
+efgh
+ijkl
+mnop
+qrst
+"
+
+p <- wrap_plots(a = pUnco_1, b = pUnco_2,
+                c = pCanek_1, d = pCanek_2,
+                e = pComBat_1, f = pComBat_2,
+                g = pComBatseq_1, h = pComBatseq_2,
+                i = pHarmony_1, j = pHarmony_2,
+                k = pLiger_1, l = pLiger_2,
+                m = pMNN_1, n = pMNN_2,
+                o = pScanorama_1, p = pScanorama_2,
+                q = pscMerge_1, r = pscMerge_2,
+                s = pSeurat_1, t = pSeurat_2,
+                design = layout, widths = 1, heights = 1)
+
+p
+```
+
